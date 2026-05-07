@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PerfRouter — Automated Perfboard Wire Routing</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* ============================
+   DESIGN SYSTEM
+   ============================ */
+:root {
+  --bg:        #0a0f0b;
+  --bg2:       #111a12;
+  --bg3:       #18261a;
+  --border:    #2a3d2c;
+  --border2:   #3a5a3d;
+  --text:      #c8ddc9;
+  --text2:     #7a9e7d;
+  --text3:     #4a6b4d;
+  --accent:    #4ade80;
+  --accent2:   #86efac;
+  --warn:      #fbbf24;
+  --danger:    #f87171;
+  --info:      #60a5fa;
+  --purple:    #c084fc;
+
+  /* Wire net colors */
+  --net0: #fbbf24; --net1: #f87171; --net2: #60a5fa;
+  --net3: #4ade80; --net4: #f97316; --net5: #c084fc;
+  --net6: #34d399; --net7: #fb7185;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow: hidden;
+}
+
+/* ============================
+   LAYOUT
+   ============================ */
+#root {
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: 260px 1fr 280px;
+  height: 100vh;
+}
+
+/* ============================
+   HEADER
+   ============================ */
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+.logo span { color: var(--text2); font-weight: 400; }
+
+.header-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #1a3a1c;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.status-text { color: var(--text2); font-size: 11px; }
+
+/* ============================
+   LEFT PANEL — TOOLBOX
+   ============================ */
+#left-panel {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.panel-section {
+  border-bottom: 1px solid var(--border);
+  padding: 14px;
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--text3);
+  margin-bottom: 10px;
+}
+
+/* Mode buttons */
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+}
+.mode-btn:hover { border-color: var(--border2); color: var(--text); background: var(--bg3); }
+.mode-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #0d2210;
+}
+.mode-btn .kbd {
+  margin-left: auto;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--text3);
+}
+
+/* Component presets */
+.comp-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.comp-preset {
+  padding: 7px 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text2);
+  transition: all .15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.comp-preset:hover { border-color: var(--border2); color: var(--accent); }
+.comp-preset .cp-name { font-weight: 700; color: var(--text); font-size: 12px; }
+.comp-preset .cp-size { font-size: 10px; color: var(--text3); }
+
+/* Board size */
+.board-size-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.size-btn {
+  padding: 6px 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text2);
+  transition: all .15s;
+  text-align: center;
+}
+.size-btn:hover { border-color: var(--border2); color: var(--text); }
+.size-btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* Algo settings */
+.algo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.algo-label { font-size: 11px; color: var(--text2); }
+.algo-val { font-size: 11px; color: var(--accent); font-weight: 500; min-width: 28px; text-align: right; }
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 3px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin-bottom: 10px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 6px #4ade8044;
+}
+
+/* Algo toggle */
+.algo-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.algo-opt {
+  flex: 1;
+  padding: 5px;
+  text-align: center;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text3);
+  transition: all .15s;
+  background: transparent;
+}
+.algo-opt.active { border-color: var(--accent); color: var(--accent); background: #0d2210; }
+
+/* Action buttons */
+.action-btn {
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: none;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #050f06;
+}
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+}
+.btn-secondary:hover { background: var(--bg3); color: var(--text); }
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid #3d1a1a;
+  color: var(--danger);
+}
+.btn-danger:hover { background: #1f0d0d; }
+
+/* Demo buttons */
+.demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.demo-btn {
+  padding: 7px 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text2);
+  transition: all .15s;
+  text-align: left;
+}
+.demo-btn:hover { border-color: var(--purple); color: var(--purple); }
+
+/* ============================
+   CENTER — CANVAS
+   ============================ */
+#center {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+}
+
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.canvas-toolbar .ct-label {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-right: 4px;
+}
+.zoom-btn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;align-items:center;justify-content:center;
+  transition: all .12s;
+  line-height: 1;
+}
+.zoom-btn:hover { border-color: var(--border2); color: var(--text); }
+.zoom-val { font-size: 11px; color: var(--text2); min-width: 36px; text-align: center; }
+
+.cursor-pos {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+#canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  position: relative;
+}
+
+#cv {
+  cursor: crosshair;
+  display: block;
+  image-rendering: pixelated;
+  transform-origin: 0 0;
+}
+
+/* Info bar */
+#info-bar {
+  padding: 7px 14px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text2);
+  min-height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.info-icon { color: var(--accent); font-size: 13px; }
+
+/* ============================
+   RIGHT PANEL — STATS & NETS
+   ============================ */
+#right-panel {
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stat cards */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 14px;
+}
+.stat-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  text-align: center;
+}
+.stat-card.warn { border-color: #4a3000; }
+.stat-val {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.stat-card.warn .stat-val { color: var(--warn); }
+.stat-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+
+/* Net list */
+.net-list { padding: 0 14px 14px; flex: 1; }
+.net-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .12s;
+  font-size: 11px;
+}
+.net-item:hover { border-color: var(--border2); background: var(--bg3); }
+.net-item.selected { border-color: var(--border2); background: var(--bg3); }
+.net-swatch {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.net-name { font-weight: 500; color: var(--text); flex: 1; }
+.net-pins { color: var(--text3); font-size: 10px; }
+.net-del {
+  width: 18px; height: 18px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+  opacity: 0;
+  line-height: 1;
+}
+.net-item:hover .net-del { opacity: 1; }
+.net-del:hover { color: var(--danger); }
+
+/* Legend */
+.legend {
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: var(--text2);
+}
+.legend-swatch {
+  width: 20px; height: 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ============================
+   SCROLLBAR
+   ============================ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* ============================
+   ROUTING ANIMATION
+   ============================ */
+@keyframes wire-draw {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ============================
+   TOOLTIP
+   ============================ */
+#tooltip {
+  position: fixed;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 5px 9px;
+  font-size: 11px;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+  white-space: nowrap;
+}
+
+/* modal */
+#algo-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+}
+#algo-modal.open { display: flex; }
+.modal-box {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  max-width: 680px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.8;
+}
+.modal-box h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+.modal-box h3 {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 16px 0 6px;
+}
+.modal-box code {
+  display: block;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent2);
+  white-space: pre;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.modal-close {
+  display: block;
+  margin-top: 20px;
+  width: 100%;
+  padding: 9px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition: all .15s;
+}
+.modal-close:hover { color: var(--text); border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="root">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Perf<span>Router</span></div>
+  <div class="header-badge">A* Pathfinder</div>
+  <div class="header-badge">Multilayer</div>
+  <div class="header-right">
+    <div class="status-dot"></div>
+    <span class="status-text" id="status-text">Ready</span>
+    <button class="action-btn btn-secondary" style="width:auto;padding:5px 12px;margin:0" onclick="showAlgoModal()">Algorithm Docs</button>
+  </div>
+</header>
+
+<!-- LEFT PANEL -->
+<div id="left-panel">
+
+  <div class="panel-section">
+    <div class="panel-title">Mode</div>
+    <button class="mode-btn active" id="btn-place" onclick="setMode('place')">
+      ◻ Place Component <span class="kbd">P</span>
+    </button>
+    <button class="mode-btn" id="btn-pin" onclick="setMode('pin')">
+      ⊕ Add Net Pin <span class="kbd">N</span>
+    </button>
+    <button class="mode-btn" id="btn-erase" onclick="setMode('erase')">
+      ✕ Erase <span class="kbd">E</span>
+    </button>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-title">Component Presets</div>
+    <div class="comp-presets">
+      <div class="comp-preset" onclick="setPreset(1,2)"><span class="cp-name">Resistor</span><span class="cp-size">1×2 holes</span></div>
+      <div class="comp-preset" onclick="setPreset(1,2)"><span class="cp-name">Capacitor</span><span class="cp-size">1×2 holes</span></div>
+      <div class="comp-preset" onclick="setPreset(2,3)"><span class="cp-name">Transistor</span><span class="cp-size">2×3 holes</span></div>
+      <div class="comp-preset" onclick="setPreset(2,4)"><span class="cp-name">IC DIP-8</span><span class="cp-size">2×4 holes</span></div>
+      <div class="comp-preset" onclick="setPreset(2,7)"><span class="cp-name">IC DIP-14</span><span class="cp-size">2×7 holes</span></div>
+      <div class="comp-preset" onclick="setPreset(2,8)"><span class="cp-name">IC DIP-16</span><span class="cp-size">2×8 holes</span></div>
+      <div class="comp-preset" onclick="setPreset(1,1)"><span class="cp-name">LED</span><span class="cp-size">1×1 hole</span></div>
+      <div class="comp-preset" onclick="setPreset(3,3)"><span class="cp-name">Relay</span><span class="cp-size">3×3 holes</span></div>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-title">Board Size</div>
+    <div class="board-size-grid">
+      <button class="size-btn" onclick="changeBoard(15,12)">15×12</button>
+      <button class="size-btn active" id="szBtn-20x16" onclick="changeBoard(20,16)">20×16</button>
+      <button class="size-btn" onclick="changeBoard(25,20)">25×20</button>
+      <button class="size-btn" onclick="changeBoard(30,24)">30×24</button>
+      <button class="size-btn" onclick="changeBoard(40,30)">40×30</button>
+      <button class="size-btn" onclick="changeBoard(50,40)">50×40</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-title">Algorithm Settings</div>
+
+    <div class="algo-toggle">
+      <button class="algo-opt active" id="alg-astar" onclick="setAlgo('astar')">A*</button>
+      <button class="algo-opt" id="alg-dijkstra" onclick="setAlgo('dijkstra')">Dijkstra</button>
+      <button class="algo-opt" id="alg-greedy" onclick="setAlgo('greedy')">Greedy</button>
+    </div>
+
+    <div class="algo-row">
+      <span class="algo-label">Crossing penalty</span>
+      <span class="algo-val" id="val-cross">15</span>
+    </div>
+    <input type="range" min="1" max="50" value="15" oninput="algoParams.crossPenalty=+this.value;document.getElementById('val-cross').textContent=this.value">
+
+    <div class="algo-row">
+      <span class="algo-label">Edge penalty</span>
+      <span class="algo-val" id="val-edge">2</span>
+    </div>
+    <input type="range" min="0" max="10" value="2" oninput="algoParams.edgePenalty=+this.value;document.getElementById('val-edge').textContent=this.value">
+
+    <div class="algo-row">
+      <span class="algo-label">Diagonal cost</span>
+      <span class="algo-val" id="val-diag">0.4</span>
+    </div>
+    <input type="range" min="0" max="3" step="0.1" value="0.4" oninput="algoParams.diagCost=+this.value;document.getElementById('val-diag').textContent=(+this.value).toFixed(1)">
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-title">Load Demo</div>
+    <div class="demo-grid">
+      <button class="demo-btn" onclick="loadDemo('555')">⏱ 555 Timer</button>
+      <button class="demo-btn" onclick="loadDemo('opamp')">〜 Op-Amp</button>
+      <button class="demo-btn" onclick="loadDemo('bridge')">⟳ H-Bridge</button>
+      <button class="demo-btn" onclick="loadDemo('psu')">⚡ Power Supply</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <button class="action-btn btn-primary" onclick="routeAll()">▶ Route All Nets</button>
+    <button class="action-btn btn-secondary" onclick="clearWires()">↺ Clear Wires Only</button>
+    <button class="action-btn btn-danger" onclick="clearAll()">✕ Clear Board</button>
+  </div>
+
+</div>
+
+<!-- CENTER CANVAS -->
+<div id="center">
+  <div class="canvas-toolbar">
+    <span class="ct-label">Zoom</span>
+    <button class="zoom-btn" onclick="adjustZoom(-0.25)">−</button>
+    <span class="zoom-val" id="zoom-display">100%</span>
+    <button class="zoom-btn" onclick="adjustZoom(0.25)">+</button>
+    <button class="zoom-btn" onclick="resetZoom()" title="Reset zoom">⊞</button>
+    <span style="margin-left:8px;font-size:10px;color:var(--text3)">Scroll to zoom · Drag to place</span>
+    <span class="cursor-pos" id="cursor-pos">—</span>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="cv"></canvas>
+  </div>
+  <div id="info-bar">
+    <span class="info-icon">◈</span>
+    <span id="info-text">Select a mode from the left panel, then interact with the board.</span>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="right-panel">
+  <div class="panel-section">
+    <div class="panel-title">Board Statistics</div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-val" id="s-comp">0</div><div class="stat-lbl">Components</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-nets">0</div><div class="stat-lbl">Nets</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-segs">0</div><div class="stat-lbl">Segments</div></div>
+    <div class="stat-card warn" id="sc-cross"><div class="stat-val" id="s-cross">0</div><div class="stat-lbl">Crossings</div></div>
+  </div>
+
+  <div class="panel-section" style="padding-bottom:6px">
+    <div class="panel-title">Net List</div>
+  </div>
+  <div class="net-list" id="net-list">
+    <div style="color:var(--text3);font-size:11px;text-align:center;padding:20px 0">No nets defined yet.</div>
+  </div>
+
+  <div class="legend">
+    <div class="panel-title">Legend</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#4a9eff44;border:1px solid #4a9eff66"></div>Empty hole (copper pad)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#a855f7"></div>Component body</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div>Net pin</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--net0)"></div>Net wire (color per net)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--warn);opacity:.5"></div>Wire crossing (avoid!)</div>
+  </div>
+</div>
+
+</div><!-- /root -->
+
+<div id="tooltip"></div>
+
+<!-- ALGO MODAL -->
+<div id="algo-modal">
+  <div class="modal-box">
+    <h2>Algorithm Structure</h2>
+    <p>PerfRouter models the perfboard as a 2D weighted grid and finds collision-free wire paths using a modified <strong>A* search algorithm</strong>. Here's the full breakdown:</p>
+
+    <h3>1. Grid Representation</h3>
+    <p>Each hole on the perfboard is a node in a graph. Nodes carry state: <em>empty</em>, <em>component</em>, <em>pin</em>, or <em>wire</em>. The cost to enter a node depends on its state and context.</p>
+<code>grid[row][col] = {
+  type: 'empty' | 'comp' | 'pin' | 'wire',
+  netId: number,   // which net owns this cell
+  compId: number,  // which component occupies
+  wire: number,    // which net's wire passes through
+}</code>
+
+    <h3>2. Cost Function</h3>
+    <p>Every move has a cost. The cost function encodes the routing quality goals:</p>
+<code>function moveCost(r, c, fromR, fromC, netId) {
+  if (outOfBounds(r, c))      return Infinity;
+  if (cell.type === 'comp')   return Infinity;       // blocked
+  if (cell.type === 'pin' &&
+      cell.netId !== netId)   return 50;             // foreign pin
+  
+  let w = 1;                                          // base cost
+  if (cell.wire !== null &&
+      cell.wire !== netId)    w += crossPenalty;     // crossing (default 15)
+  
+  // Aesthetic: avoid edges (keep wires centered)
+  const edgeDist = Math.min(r, c, ROWS-1-r, COLS-1-c);
+  if (edgeDist < 2)           w += edgePenalty;      // default 2
+
+  // Diagonal movement costs slightly more
+  const isDiag = (r !== fromR && c !== fromC);
+  if (isDiag)                 w += diagCost;          // default 0.4
+
+  return w;
+}</code>
+
+    <h3>3. A* Search</h3>
+    <p>A* explores the least-cost path using a heuristic (Manhattan distance) to guide search toward the target, making it much faster than Dijkstra for sparse boards.</p>
+<code>function astar(start, end, netId) {
+  const open = new PriorityQueue();  // min-heap by f = g + h
+  open.push({ pos: start, g: 0, f: heuristic(start, end) });
+
+  const gScore = {};           // best cost so far to each node
+  const parent = {};           // for path reconstruction
+
+  while (!open.empty()) {
+    const current = open.pop(); // node with lowest f
+
+    if (reached(current, end)) return reconstructPath(parent, current);
+
+    for (const neighbor of neighbors(current)) {
+      const cost = moveCost(...neighbor, netId);
+      const tentativeG = gScore[current] + cost;
+
+      if (tentativeG < gScore[neighbor] ?? Infinity) {
+        gScore[neighbor] = tentativeG;
+        parent[neighbor] = current;
+        // f = g (actual cost) + h (heuristic estimate)
+        open.push({ pos: neighbor, f: tentativeG + heuristic(neighbor, end) });
+      }
+    }
+  }
+  return null; // no path found
+}
+
+// Heuristic: Manhattan distance (admissible — never overestimates)
+function heuristic(a, b) {
+  return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]);
+}</code>
+
+    <h3>4. Multi-Net Routing Order</h3>
+    <p>Nets are routed in order of pin-pair distance (shortest first). This is a greedy ordering — solving simpler connections first leaves more space for complex ones.</p>
+<code>// Sort nets by Euclidean distance between first two pins
+nets.sort((a, b) => dist(a.pins[0], a.pins[1]) - dist(b.pins[0], b.pins[1]));
+
+// Chain routing: for nets with >2 pins, route A→B then B→C (MST approximation)
+for (let i = 0; i < net.pins.length - 1; i++) {
+  const path = astar(net.pins[i], net.pins[i+1], net.id);
+  if (path) markWireCells(path, net.id);
+}</code>
+
+    <h3>5. Neighbor Expansion (8-directional)</h3>
+    <p>The router considers all 8 neighbors (4 orthogonal + 4 diagonal), allowing wires to run at 45° angles. Diagonal moves cost slightly more to bias toward Manhattan paths when cost is equal.</p>
+<code>const DIRS = [
+  [0,1],[1,0],[0,-1],[-1,0],   // orthogonal (cost 1)
+  [1,1],[1,-1],[-1,1],[-1,-1]  // diagonal (cost 1 + diagCost)
+];</code>
+
+    <h3>6. Crossing Detection</h3>
+    <p>After routing, every wire cell is inspected. A crossing is flagged when two different nets share a cell. The crossing penalty in the cost function makes the router <em>prefer</em> to avoid them, but allows crossings when no clean path exists.</p>
+
+    <h3>Complexity</h3>
+    <p>A* time complexity: <strong>O(E log V)</strong> per net, where V = ROWS×COLS and E = 8V (8-connected grid). For a 30×24 board with 10 nets, this is approximately 10 × (720 × log 720) ≈ 97,000 operations — essentially instant.</p>
+    <button class="modal-close" onclick="document.getElementById('algo-modal').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  PERFBOARD ROUTER — Full Implementation
+//  Algorithm: Weighted A* on 8-connected grid
+// ============================================================
+
+// --- State ---
+let COLS = 20, ROWS = 16;
+const BASE_CELL = 28;
+let zoom = 1;
+let grid = [], nets = [], components = [], wires = [];
+let mode = 'place';
+let algoType = 'astar';
+let algoParams = { crossPenalty: 15, edgePenalty: 2, diagCost: 0.4 };
+let pendingNet = [];
+let selectedNet = -1;
+let compCount = 0;
+let netCount = 0;
+
+// Dragging for component placement
+let isDragging = false;
+let dragStart = null;
+let previewRect = null;
+let presetW = 1, presetH = 2;
+
+const NET_COLORS = ['#fbbf24','#f87171','#60a5fa','#4ade80','#f97316','#c084fc','#34d399','#fb7185','#a78bfa','#22d3ee'];
+const COMP_NAMES = ['R','C','U','Q','L','D','SW','LED','OSC','X','TR','RLY'];
+
+// --- Canvas setup ---
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const wrap = document.getElementById('canvas-wrap');
+
+function getCELL() { return Math.floor(BASE_CELL * zoom); }
+const PAD = 20;
+
+// ============================================================
+//  GRID INIT
+// ============================================================
+function initGrid() {
+  grid = [];
+  for (let r = 0; r < ROWS; r++) {
+    grid.push([]);
+    for (let c = 0; c < COLS; c++) {
+      grid[r].push({ type: 'empty', netId: -1, compId: -1, wire: null });
+    }
+  }
+}
+
+function initCanvas() {
+  const CELL = getCELL();
+  cv.width  = COLS * CELL + PAD * 2;
+  cv.height = ROWS * CELL + PAD * 2;
+  draw();
+}
+
+// ============================================================
+//  DRAW
+// ============================================================
+function draw() {
+  const CELL = getCELL();
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // PCB background
+  ctx.fillStyle = '#0d1f10';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle grid lines
+  ctx.strokeStyle = '#1a3020';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath();
+    ctx.moveTo(PAD, PAD + r * CELL);
+    ctx.lineTo(PAD + COLS * CELL, PAD + r * CELL);
+    ctx.stroke();
+  }
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath();
+    ctx.moveTo(PAD + c * CELL, PAD);
+    ctx.lineTo(PAD + c * CELL, PAD + ROWS * CELL);
+    ctx.stroke();
+  }
+
+  // Draw wires FIRST (behind pads)
+  wires.forEach(wire => {
+    if (!wire.path || wire.path.length < 2) return;
+    const col = NET_COLORS[wire.netId % NET_COLORS.length];
+    ctx.strokeStyle = col;
+    ctx.lineWidth = Math.max(2, CELL * 0.18);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.82;
+    ctx.beginPath();
+    wire.path.forEach((p, i) => {
+      const px = PAD + p[1] * CELL + CELL / 2;
+      const py = PAD + p[0] * CELL + CELL / 2;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+
+  // Draw crossing markers
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell.crossings && cell.crossings > 0) {
+        const x = PAD + c * CELL + CELL / 2;
+        const y = PAD + r * CELL + CELL / 2;
+        ctx.strokeStyle = '#fbbf2488';
+        ctx.lineWidth = 1;
+        const s = CELL * 0.28;
+        ctx.beginPath();
+        ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s);
+        ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      const x = PAD + c * CELL + CELL / 2;
+      const y = PAD + r * CELL + CELL / 2;
+
+      if (cell.type === 'comp') {
+        // Component fill — drawn per-component below
+        continue;
+      } else if (cell.type === 'pin') {
+        const col = NET_COLORS[cell.netId % NET_COLORS.length];
+        // Outer glow ring
+        ctx.fillStyle = col + '33';
+        ctx.beginPath(); ctx.arc(x, y, CELL * 0.38, 0, Math.PI * 2); ctx.fill();
+        // Pad
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(x, y, CELL * 0.24, 0, Math.PI * 2); ctx.fill();
+        // Net number label
+        if (CELL > 18) {
+          ctx.fillStyle = '#000';
+          ctx.font = `bold ${Math.max(8, CELL * 0.28)}px 'JetBrains Mono', monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cell.netId + 1, x, y + 0.5);
+        }
+      } else {
+        // Empty hole — copper pad ring
+        ctx.fillStyle = '#b5820033';
+        ctx.beginPath(); ctx.arc(x, y, CELL * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#3a6040';
+        ctx.beginPath(); ctx.arc(x, y, CELL * 0.14, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  // Draw components as solid blocks
+  const drawnComps = new Set();
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'comp' || drawnComps.has(cell.compId)) continue;
+      const comp = components.find(x => x.id === cell.compId);
+      if (!comp) continue;
+      drawnComps.add(cell.compId);
+
+      const x = PAD + comp.c1 * CELL + 3;
+      const y = PAD + comp.r1 * CELL + 3;
+      const w = (comp.c2 - comp.c1 + 1) * CELL - 6;
+      const h = (comp.r2 - comp.r1 + 1) * CELL - 6;
+
+      // Body
+      ctx.fillStyle = '#1a0a3a';
+      roundRect(ctx, x, y, w, h, 4);
+      ctx.fill();
+
+      // Border
+      ctx.strokeStyle = '#7c3aed';
+      ctx.lineWidth = 1;
+      roundRect(ctx, x, y, w, h, 4);
+      ctx.stroke();
+
+      // Pin dots along edges
+      ctx.fillStyle = '#b8a0f080';
+      for (let pr = comp.r1; pr <= comp.r2; pr++) {
+        for (let pc = comp.c1; pc <= comp.c2; pc++) {
+          const px = PAD + pc * CELL + CELL / 2;
+          const py = PAD + pr * CELL + CELL / 2;
+          ctx.beginPath(); ctx.arc(px, py, CELL * 0.12, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      // Label
+      const cx = PAD + (comp.c1 + comp.c2 + 1) / 2 * CELL;
+      const cy = PAD + (comp.r1 + comp.r2 + 1) / 2 * CELL;
+      ctx.fillStyle = '#e2d4ff';
+      ctx.font = `bold ${Math.max(9, Math.min(14, CELL * 0.5))}px 'JetBrains Mono', monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(comp.name, cx, cy);
+    }
+  }
+
+  // Pending net pins (dashed ring)
+  pendingNet.forEach(p => {
+    const x = PAD + p[1] * CELL + CELL / 2;
+    const y = PAD + p[0] * CELL + CELL / 2;
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(x, y, CELL * 0.38, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Preview drag rect for placement
+  if (isDragging && previewRect) {
+    const { r1, c1, r2, c2 } = previewRect;
+    ctx.fillStyle = '#7c3aed33';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 1;
+    const rx = PAD + c1 * CELL + 3, ry = PAD + r1 * CELL + 3;
+    const rw = (c2 - c1 + 1) * CELL - 6, rh = (r2 - r1 + 1) * CELL - 6;
+    roundRect(ctx, rx, ry, rw, rh, 4);
+    ctx.fill();
+    roundRect(ctx, rx, ry, rw, rh, 4);
+    ctx.stroke();
+  }
+
+  // Board outline
+  ctx.strokeStyle = '#2a4d2d';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(PAD, PAD, COLS * CELL, ROWS * CELL);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ============================================================
+//  A* PATHFINDER — Core Algorithm
+// ============================================================
+
+function heuristic(a, b) {
+  // Manhattan distance — admissible heuristic (never overestimates)
+  return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+}
+
+function moveCost(r, c, fromR, fromC, netId) {
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return Infinity;
+  const cell = grid[r][c];
+
+  // Impassable: components
+  if (cell.type === 'comp') return Infinity;
+
+  // Foreign pin: very high cost but not impossible (might need to pass nearby)
+  if (cell.type === 'pin' && cell.netId !== netId) return 50;
+
+  let cost = 1; // base traversal cost
+
+  // CROSSING PENALTY: passing through another net's wire is expensive
+  if (cell.wire !== null && cell.wire !== netId) cost += algoParams.crossPenalty;
+
+  // AESTHETIC EDGE PENALTY: keep wires away from board edges
+  const edgeDist = Math.min(r, c, ROWS - 1 - r, COLS - 1 - c);
+  if (edgeDist < 2) cost += algoParams.edgePenalty * (2 - edgeDist);
+
+  // DIAGONAL COST: slight preference for orthogonal moves
+  const isDiag = (r !== fromR && c !== fromC);
+  if (isDiag) cost += algoParams.diagCost;
+
+  return cost;
+}
+
+function astar(start, end, netId) {
+  // 8-directional neighbors
+  const DIRS = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const key = p => p[0] * 10000 + p[1];
+
+  const gScore = {};
+  const fScore = {};
+  const parent = {};
+  const closed = new Set();
+
+  // Simple priority queue (min-heap not needed at this scale — sorted array)
+  // For large boards, swap with a proper binary heap
+  let open = [];
+
+  const sk = key(start);
+  gScore[sk] = 0;
+  fScore[sk] = heuristic(start, end);
+  open.push({ pos: start, f: fScore[sk] });
+
+  let iterations = 0;
+  const MAX_ITER = COLS * ROWS * 6;
+
+  while (open.length > 0 && iterations++ < MAX_ITER) {
+    // Pop lowest f
+    open.sort((a, b) => a.f - b.f);
+    const { pos: cur } = open.shift();
+    const ck = key(cur);
+
+    if (closed.has(ck)) continue;
+    closed.add(ck);
+
+    // Goal reached → reconstruct path
+    if (cur[0] === end[0] && cur[1] === end[1]) {
+      const path = [cur];
+      let pk = ck;
+      while (parent[pk] !== undefined) {
+        path.unshift(parent[pk]);
+        pk = key(parent[pk]);
+      }
+      return path;
+    }
+
+    for (const d of DIRS) {
+      const nr = cur[0] + d[0], nc = cur[1] + d[1];
+      const nk = key([nr, nc]);
+      if (closed.has(nk)) continue;
+
+      const cost = moveCost(nr, nc, cur[0], cur[1], netId);
+      if (!isFinite(cost)) continue;
+
+      const tentativeG = (gScore[ck] ?? Infinity) + cost;
+      if (tentativeG < (gScore[nk] ?? Infinity)) {
+        gScore[nk] = tentativeG;
+        fScore[nk] = tentativeG + heuristic([nr, nc], end);
+        parent[nk] = cur;
+        open.push({ pos: [nr, nc], f: fScore[nk] });
+      }
+    }
+  }
+
+  return null; // no path found
+}
+
+// Dijkstra (no heuristic, guaranteed optimal)
+function dijkstra(start, end, netId) {
+  const DIRS = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const key = p => p[0] * 10000 + p[1];
+  const dist = {};
+  const parent = {};
+  const visited = new Set();
+  let open = [];
+
+  const sk = key(start);
+  dist[sk] = 0;
+  open.push({ pos: start, d: 0 });
+
+  let iter = 0;
+  while (open.length && iter++ < COLS * ROWS * 8) {
+    open.sort((a, b) => a.d - b.d);
+    const { pos: cur } = open.shift();
+    const ck = key(cur);
+    if (visited.has(ck)) continue;
+    visited.add(ck);
+
+    if (cur[0] === end[0] && cur[1] === end[1]) {
+      const path = [cur]; let pk = ck;
+      while (parent[pk] !== undefined) { path.unshift(parent[pk]); pk = key(parent[pk]); }
+      return path;
+    }
+
+    for (const d of DIRS) {
+      const nr = cur[0]+d[0], nc = cur[1]+d[1];
+      const nk = key([nr,nc]);
+      if (visited.has(nk)) continue;
+      const cost = moveCost(nr, nc, cur[0], cur[1], netId);
+      if (!isFinite(cost)) continue;
+      const nd = dist[ck] + cost;
+      if (nd < (dist[nk] ?? Infinity)) {
+        dist[nk] = nd; parent[nk] = cur;
+        open.push({ pos: [nr,nc], d: nd });
+      }
+    }
+  }
+  return null;
+}
+
+// Greedy best-first (fast, not always optimal)
+function greedyBFS(start, end, netId) {
+  const DIRS = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const key = p => p[0] * 10000 + p[1];
+  const visited = new Set();
+  const parent = {};
+  let open = [{ pos: start, h: heuristic(start, end) }];
+  visited.add(key(start));
+
+  let iter = 0;
+  while (open.length && iter++ < COLS * ROWS * 4) {
+    open.sort((a, b) => a.h - b.h);
+    const { pos: cur } = open.shift();
+    const ck = key(cur);
+
+    if (cur[0] === end[0] && cur[1] === end[1]) {
+      const path = [cur]; let pk = ck;
+      while (parent[pk]) { path.unshift(parent[pk]); pk = key(parent[pk]); }
+      return path;
+    }
+
+    for (const d of DIRS) {
+      const nr = cur[0]+d[0], nc = cur[1]+d[1];
+      const nk = key([nr,nc]);
+      if (visited.has(nk)) continue;
+      const cost = moveCost(nr, nc, cur[0], cur[1], netId);
+      if (!isFinite(cost)) continue;
+      visited.add(nk);
+      parent[nk] = cur;
+      open.push({ pos: [nr,nc], h: heuristic([nr,nc], end) });
+    }
+  }
+  return null;
+}
+
+function route(start, end, netId) {
+  if (algoType === 'dijkstra') return dijkstra(start, end, netId);
+  if (algoType === 'greedy') return greedyBFS(start, end, netId);
+  return astar(start, end, netId);
+}
+
+// ============================================================
+//  ROUTING ORCHESTRATOR
+// ============================================================
+function routeAll() {
+  setStatus('Routing…');
+  clearWires(false); // clear only wire state, not cells
+
+  // Sort nets by shortest first (greedy ordering)
+  const orderedNets = [...nets].sort((a, b) => {
+    if (a.pins.length < 2 || b.pins.length < 2) return 0;
+    return dist2(a.pins[0], a.pins[1]) - dist2(b.pins[0], b.pins[1]);
+  });
+
+  let totalSegs = 0, crossings = 0;
+  wires = [];
+
+  // Reset wire state on all cells
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) { grid[r][c].wire = null; grid[r][c].crossings = 0; }
+
+  orderedNets.forEach(net => {
+    if (net.pins.length < 2) return;
+    // Chain route: pin[0]→pin[1]→pin[2]→…
+    for (let i = 0; i < net.pins.length - 1; i++) {
+      const path = route(net.pins[i], net.pins[i + 1], net.id);
+      if (!path) { info(`⚠ No path found for Net ${net.id + 1}`); return; }
+
+      path.forEach(p => {
+        const cell = grid[p[0]][p[1]];
+        if (cell.wire !== null && cell.wire !== net.id) {
+          cell.crossings = (cell.crossings || 0) + 1;
+          crossings++;
+        }
+        if (cell.type === 'empty') cell.wire = net.id;
+      });
+
+      wires.push({ netId: net.id, path });
+      totalSegs += path.length - 1;
+    }
+  });
+
+  draw();
+  updateStats(totalSegs, crossings);
+  const msg = crossings === 0
+    ? `✓ Routed ${nets.length} nets, ${totalSegs} segments. Clean layout!`
+    : `⚠ Routed ${nets.length} nets, ${totalSegs} segments. ${crossings} crossings — increase crossing penalty or reposition components.`;
+  info(msg);
+  setStatus('Done');
+}
+
+function dist2(a, b) {
+  return Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2);
+}
+
+// ============================================================
+//  INTERACTION
+// ============================================================
+function rcFromEvent(e) {
+  const rect = cv.getBoundingClientRect();
+  const CELL = getCELL();
+  const scaleX = cv.width / rect.width;
+  const scaleY = cv.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  const c = Math.floor((x - PAD) / CELL);
+  const r = Math.floor((y - PAD) / CELL);
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return null;
+  return [r, c];
+}
+
+cv.addEventListener('mousedown', e => {
+  if (e.button === 2) return;
+  const p = rcFromEvent(e);
+  if (!p) return;
+
+  if (mode === 'place') {
+    isDragging = true;
+    dragStart = p;
+    previewRect = { r1: p[0], c1: p[1], r2: p[0], c2: p[1] };
+  } else if (mode === 'pin') {
+    const cell = grid[p[0]][p[1]];
+    if (cell.type === 'comp') { info('Cannot place pin inside component.'); return; }
+
+    // Check if already in pending net
+    const ei = pendingNet.findIndex(q => q[0] === p[0] && q[1] === p[1]);
+    if (ei >= 0) { pendingNet.splice(ei, 1); draw(); return; }
+
+    pendingNet.push(p);
+
+    if (pendingNet.length >= 2) {
+      // Commit this net
+      const ni = netCount++;
+      nets.push({ id: ni, pins: [...pendingNet], name: `Net ${ni + 1}` });
+      pendingNet.forEach(pp => {
+        grid[pp[0]][pp[1]] = { type: 'pin', netId: ni, compId: -1, wire: null, crossings: 0 };
+      });
+      pendingNet = [];
+      updateNetList();
+      updateStats();
+      info(`Net ${ni + 1} created. Add another net or click Route.`);
+      draw();
+    } else {
+      info(`Pin 1 placed. Click another hole to complete the net.`);
+      draw();
+    }
+  } else if (mode === 'erase') {
+    eraseAt(p);
+  }
+});
+
+cv.addEventListener('mousemove', e => {
+  const p = rcFromEvent(e);
+  if (p) {
+    document.getElementById('cursor-pos').textContent = `R${p[0]+1} C${p[1]+1}`;
+  } else {
+    document.getElementById('cursor-pos').textContent = '—';
+  }
+
+  if (!isDragging || mode !== 'place' || !p) return;
+  previewRect = {
+    r1: Math.min(dragStart[0], p[0]), c1: Math.min(dragStart[1], p[1]),
+    r2: Math.max(dragStart[0], p[0]), c2: Math.max(dragStart[1], p[1])
+  };
+  // Apply preset if single click (not dragging far)
+  draw();
+});
+
+cv.addEventListener('mouseup', e => {
+  if (!isDragging || mode !== 'place') { isDragging = false; return; }
+  isDragging = false;
+
+  const p = rcFromEvent(e) || dragStart;
+  const r = previewRect || { r1: dragStart[0], c1: dragStart[1], r2: dragStart[0], c2: dragStart[1] };
+
+  // Clamp to board
+  r.r2 = Math.max(r.r2, p ? p[0] : r.r2);
+  r.c2 = Math.max(r.c2, p ? p[1] : r.c2);
+
+  // If it was just a click (no drag), use preset dimensions
+  if (r.r1 === r.r2 && r.c1 === r.c2) {
+    r.r2 = Math.min(ROWS - 1, r.r1 + presetH - 1);
+    r.c2 = Math.min(COLS - 1, r.c1 + presetW - 1);
+  }
+
+  // Check for overlap with existing components
+  for (let row = r.r1; row <= r.r2; row++) {
+    for (let col = r.c1; col <= r.c2; col++) {
+      if (grid[row][col].type === 'comp') { info('Overlaps existing component.'); previewRect=null; draw(); return; }
+    }
+  }
+
+  const cid = compCount++;
+  const name = COMP_NAMES[cid % COMP_NAMES.length] + (Math.floor(cid / COMP_NAMES.length) + 1);
+  const comp = { ...r, id: cid, name };
+  components.push(comp);
+
+  for (let row = r.r1; row <= r.r2; row++)
+    for (let col = r.c1; col <= r.c2; col++)
+      grid[row][col] = { type: 'comp', netId: -1, compId: cid, wire: null, crossings: 0 };
+
+  previewRect = null;
+  draw();
+  updateStats();
+  info(`Component ${name} placed. Switch to "Add Net Pin" to wire connections.`);
+});
+
+cv.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const p = rcFromEvent(e);
+  if (!p) return;
+  eraseAt(p);
+});
+
+function eraseAt(p) {
+  const cell = grid[p[0]][p[1]];
+  if (cell.type === 'comp') {
+    const cid = cell.compId;
+    components = components.filter(c => c.id !== cid);
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (grid[r][c].compId === cid)
+          grid[r][c] = { type: 'empty', netId: -1, compId: -1, wire: null, crossings: 0 };
+    info('Component removed.');
+  } else if (cell.type === 'pin') {
+    const ni = cell.netId;
+    nets[ni].pins = nets[ni].pins.filter(q => !(q[0] === p[0] && q[1] === p[1]));
+    grid[p[0]][p[1]] = { type: 'empty', netId: -1, compId: -1, wire: null, crossings: 0 };
+    if (nets[ni].pins.length === 0) {
+      nets.splice(ni, 1);
+      // Re-index netIds
+      reindexNets();
+    }
+    updateNetList();
+    info('Pin removed.');
+  }
+  draw(); updateStats();
+}
+
+function reindexNets() {
+  nets.forEach((net, i) => { net.id = i; });
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell.type === 'pin') {
+        const net = nets.find(n => n.pins.some(p => p[0] === r && p[1] === c));
+        if (net) cell.netId = net.id;
+      }
+    }
+}
+
+// ============================================================
+//  ZOOM
+// ============================================================
+function adjustZoom(delta) {
+  zoom = Math.max(0.5, Math.min(3, zoom + delta));
+  document.getElementById('zoom-display').textContent = Math.round(zoom * 100) + '%';
+  initCanvas();
+}
+function resetZoom() { zoom = 1; document.getElementById('zoom-display').textContent = '100%'; initCanvas(); }
+
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  adjustZoom(e.deltaY < 0 ? 0.25 : -0.25);
+}, { passive: false });
+
+// ============================================================
+//  MODE & SETTINGS
+// ============================================================
+function setMode(m) {
+  mode = m;
+  pendingNet = [];
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + m)?.classList.add('active');
+  const msgs = {
+    place: 'Click to place at preset size, or drag to custom size. Right-click to erase.',
+    pin: 'Click two holes to create a net. Repeat for more nets.',
+    erase: 'Click any cell to erase. Right-click also erases.'
+  };
+  info(msgs[m] || '');
+  draw();
+}
+
+function setAlgo(a) {
+  algoType = a;
+  document.querySelectorAll('.algo-opt').forEach(b => b.classList.remove('active'));
+  document.getElementById('alg-' + a)?.classList.add('active');
+}
+
+function setPreset(h, w) {
+  presetH = h; presetW = w;
+  setMode('place');
+  info(`Preset: ${w}×${h} — click the board to place.`);
+}
+
+function changeBoard(c, r) {
+  COLS = c; ROWS = r;
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+  clearAll();
+}
+
+// ============================================================
+//  CLEAR / RESET
+// ============================================================
+function clearAll() {
+  wires = []; nets = []; components = []; pendingNet = [];
+  compCount = 0; netCount = 0;
+  initGrid(); initCanvas();
+  updateStats(); updateNetList();
+  info('Board cleared.');
+  setStatus('Ready');
+}
+
+function clearWires(redraw = true) {
+  wires = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) { grid[r][c].wire = null; grid[r][c].crossings = 0; }
+  if (redraw) { draw(); updateStats(0, 0); info('Wires cleared.'); }
+}
+
+// ============================================================
+//  STATS & NET LIST
+// ============================================================
+function updateStats(segs, cross) {
+  document.getElementById('s-comp').textContent = components.length;
+  document.getElementById('s-nets').textContent = nets.length;
+  document.getElementById('s-segs').textContent = segs ?? 0;
+  const cr = cross ?? 0;
+  document.getElementById('s-cross').textContent = cr;
+  document.getElementById('sc-cross').style.borderColor = cr > 0 ? '#78350f' : '';
+}
+
+function updateNetList() {
+  const el = document.getElementById('net-list');
+  if (nets.length === 0) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:11px;text-align:center;padding:20px 0">No nets defined yet.</div>';
+    return;
+  }
+  el.innerHTML = nets.map((net, i) => `
+    <div class="net-item" onclick="selectNet(${i})">
+      <div class="net-swatch" style="background:${NET_COLORS[i % NET_COLORS.length]}"></div>
+      <span class="net-name">${net.name}</span>
+      <span class="net-pins">${net.pins.length} pins</span>
+      <button class="net-del" onclick="deleteNet(${i},event)">✕</button>
+    </div>
+  `).join('');
+}
+
+function selectNet(i) {
+  selectedNet = i;
+  document.querySelectorAll('.net-item').forEach((el, j) => el.classList.toggle('selected', j === i));
+}
+
+function deleteNet(i, e) {
+  e.stopPropagation();
+  const net = nets[i];
+  net.pins.forEach(p => { grid[p[0]][p[1]] = { type: 'empty', netId: -1, compId: -1, wire: null, crossings: 0 }; });
+  nets.splice(i, 1);
+  reindexNets();
+  updateNetList(); draw(); updateStats();
+}
+
+function info(t) { document.getElementById('info-text').textContent = t; }
+function setStatus(t) { document.getElementById('status-text').textContent = t; }
+
+// ============================================================
+//  DEMO BOARDS
+// ============================================================
+function loadDemo(type) {
+  clearAll();
+  COLS = 24; ROWS = 18;
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+  initGrid(); initCanvas();
+
+  const demos = {
+    '555': () => {
+      placeComp(5, 8, 9, 11, '555'); placeComp(2, 2, 3, 3, 'C1');
+      placeComp(2, 5, 3, 6, 'R1'); placeComp(6, 5, 7, 6, 'R2');
+      placeComp(11, 8, 12, 9, 'C2'); placeComp(2, 15, 4, 16, 'LED');
+      placeComp(2, 13, 3, 14, 'R3'); placeComp(14, 3, 15, 4, 'VCC');
+      addNet([[5,7],[2,3],[2,7]]);       // VCC rail
+      addNet([[9,8],[12,8],[15,3]]);     // GND rail
+      addNet([[7,7],[6,7],[3,3]]);       // threshold
+      addNet([[5,12],[2,14],[2,15]]);    // output
+      addNet([[6,12],[3,6]]);            // discharge
+      addNet([[3,5],[4,5]]);             // R1-R2 junction
+    },
+    'opamp': () => {
+      placeComp(6, 9, 10, 12, 'LM741'); placeComp(3, 2, 4, 3, 'Rin');
+      placeComp(3, 5, 4, 6, 'Rf'); placeComp(13, 9, 14, 10, 'RL');
+      placeComp(3, 14, 4, 15, 'Rg'); placeComp(1, 8, 2, 9, 'VCC');
+      placeComp(14, 3, 15, 4, 'GND');
+      addNet([[6,8],[3,3],[3,6]]);       // inverting input
+      addNet([[8,8],[3,14],[3,15]]);     // non-inv input
+      addNet([[8,13],[13,9]]);           // output
+      addNet([[1,8],[6,11]]);            // V+
+      addNet([[10,11],[14,3]]);          // V-/GND
+    },
+    'bridge': () => {
+      placeComp(3, 3, 4, 4, 'Q1'); placeComp(3, 9, 4, 10, 'Q2');
+      placeComp(9, 3, 10, 4, 'Q3'); placeComp(9, 9, 10, 10, 'Q4');
+      placeComp(6, 6, 7, 7, 'Motor'); placeComp(1, 11, 2, 12, 'PWM');
+      placeComp(12, 4, 13, 5, 'GND');
+      addNet([[3,3],[3,9],[1,12]]);      // high side
+      addNet([[10,4],[10,10],[12,4]]);   // low side/GND
+      addNet([[4,4],[9,4],[6,6]]);       // motor terminal A
+      addNet([[4,10],[9,10],[6,7]]);     // motor terminal B
+      addNet([[4,3],[4,9]]);             // gate drive A
+      addNet([[9,3],[9,9]]);             // gate drive B
+    },
+    'psu': () => {
+      placeComp(3, 3, 5, 7, 'Bridge'); placeComp(3, 10, 5, 11, 'C_in');
+      placeComp(7, 8, 9, 11, '7805'); placeComp(7, 3, 8, 5, 'C_bulk');
+      placeComp(3, 14, 4, 15, 'C_out'); placeComp(10, 13, 11, 14, 'LED');
+      placeComp(10, 11, 11, 12, 'R_led');
+      addNet([[3,3],[3,10],[3,14]]);     // rectified +
+      addNet([[5,7],[5,11],[8,3],[7,8]]);// filter node
+      addNet([[9,11],[3,15],[10,11]]);   // output +5V
+      addNet([[5,4],[8,4],[9,8],[10,12],[11,13]]); // GND bus
+    }
+  };
+
+  if (demos[type]) {
+    demos[type]();
+    updateNetList(); draw(); updateStats();
+    setTimeout(() => routeAll(), 100);
+    info(`${type} demo loaded and routing...`);
+  }
+}
+
+function placeComp(r1, c1, r2, c2, name) {
+  const cid = compCount++;
+  components.push({ r1, c1, r2, c2, id: cid, name });
+  for (let r = r1; r <= r2; r++)
+    for (let c = c1; c <= c2; c++)
+      grid[r][c] = { type: 'comp', netId: -1, compId: cid, wire: null, crossings: 0 };
+}
+
+function addNet(pins) {
+  const validPins = pins.filter(p => {
+    const [r, c] = p;
+    return r >= 0 && r < ROWS && c >= 0 && c < COLS && grid[r][c].type === 'empty';
+  });
+  if (validPins.length < 2) return;
+  const ni = netCount++;
+  nets.push({ id: ni, pins: validPins, name: `Net ${ni + 1}` });
+  validPins.forEach(p => {
+    grid[p[0]][p[1]] = { type: 'pin', netId: ni, compId: -1, wire: null, crossings: 0 };
+  });
+}
+
+// ============================================================
+//  ALGORITHM MODAL
+// ============================================================
+function showAlgoModal() {
+  document.getElementById('algo-modal').classList.add('open');
+}
+document.getElementById('algo-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('algo-modal'))
+    document.getElementById('algo-modal').classList.remove('open');
+});
+
+// ============================================================
+//  KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'p' || e.key === 'P') setMode('place');
+  if (e.key === 'n' || e.key === 'N') setMode('pin');
+  if (e.key === 'e' || e.key === 'E') setMode('erase');
+  if (e.key === 'r' || e.key === 'R') routeAll();
+  if (e.key === '+' || e.key === '=') adjustZoom(0.25);
+  if (e.key === '-') adjustZoom(-0.25);
+  if (e.key === 'Escape') { pendingNet = []; draw(); }
+});
+
+// ============================================================
+//  BOOT
+// ============================================================
+initGrid();
+initCanvas();
+info('Welcome to PerfRouter! Press P to place components, N to add net pins, then R to route.');
+
+</script>
+</body>
+</html>
+HTMLEOF
